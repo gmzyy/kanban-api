@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
-require('../kanban-api/config/db'); // 👈 esta línea conecta a MySQL
+require('./config/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,11 +17,10 @@ app.get('/', (req, res) => {
   res.send('✅ API funcionando correctamente');
 });
 
-// Rutas
-app.use('/api/users', require('./routes/users'));
-app.use('/api/columns', require('./routes/columns')); // ✅ Asegúrate que está
-app.use('/api/tasks', require('./routes/tasks'));     // (para después)
 
+app.use('/api/users', require('./routes/users'));
+app.use('/api/columns', require('./routes/columns')); 
+app.use('/api/tasks', require('./routes/tasks'));     
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });

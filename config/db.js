@@ -3,12 +3,11 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
+  host: process.env.DB_HOST,        
+  port: process.env.DB_PORT,        
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
 });
 
 db.connect((err) => {
