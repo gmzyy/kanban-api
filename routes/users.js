@@ -4,13 +4,12 @@ const db = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-// 🔐 Clave secreta para JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'watsibienwatsimal';
 
 router.get('/', (req, res) => {
   db.query('SELECT id, name, email, role FROM users', (err, results) => {
     if (err) {
-      console.error('❌ Error al obtener usuarios:', err);
+      console.error(' Error al obtener usuarios:', err);
       return res.status(500).json({ error: 'Error al obtener usuarios' });
     }
     res.json(results);
@@ -20,35 +19,46 @@ router.get('/', (req, res) => {
 router.post('/', async (req, res) => {
   const { name, email, password, role } = req.body;
 
-  console.log('📥 Datos recibidos en POST /users:', req.body);
+  console.log(' Datos recibidos en POST /users:', req.body);
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const query = 'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)';
-    const values = [name, email, hashedPassword, role];
-
-    db.query(query, values, (err, result) => {
+    db.query('SELECT id FROM users WHERE email = ?', [email], async (err, results) => {
       if (err) {
-        console.error('❌ Error al insertar usuario:', err);
-        return res.status(500).json({ error: 'Error al insertar usuario' });
+        console.error(' Error al verificar el email:', err);
+        return res.status(500).json({ error: 'Error al verificar el email' });
       }
 
-      res.status(201).json({
-        message: '✅ Usuario creado correctamente',
-        user: {
-          id: result.insertId,
-          name,
-          email,
-          role
+      if (results.length > 0) {
+        return res.status(409).json({ error: 'El email ya está registrado' });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const query = 'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)';
+      const values = [name, email, hashedPassword, role];
+
+      db.query(query, values, (err, result) => {
+        if (err) {
+          console.error(' Error al insertar usuario:', err);
+          return res.status(500).json({ error: 'Error al insertar usuario' });
         }
+
+        res.status(201).json({
+          message: 'Usuario creado correctamente',
+          user: {
+            id: result.insertId,
+            name,
+            email,
+            role
+          }
+        });
       });
     });
   } catch (err) {
-    console.error('❌ Error al hashear la contraseña:', err);
+    console.error('Error al hashear la contraseña:', err);
     res.status(500).json({ error: 'Error en el servidor' });
   }
 });
@@ -63,7 +73,7 @@ router.post('/login', (req, res) => {
   const query = 'SELECT * FROM users WHERE email = ? LIMIT 1';
   db.query(query, [email], async (err, results) => {
     if (err) {
-      console.error('❌ Error al buscar usuario:', err);
+      console.error(' Error al buscar usuario:', err);
       return res.status(500).json({ error: 'Error en el servidor' });
     }
 
@@ -85,7 +95,7 @@ router.post('/login', (req, res) => {
     );
 
     res.json({
-      message: ' Login exitoso',
+      message: '✅ Login exitoso',
       token,
       user: {
         id: user.id,
