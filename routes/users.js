@@ -19,7 +19,6 @@ function auth(req, res, next) {
     return res.status(401).json({ error: 'Token inválido' });
   }
 }
-// Atajo para saber si es el propio user o admin/owner
 function canModifyUser(req, targetUserId) {
   const isSelf = Number(req.user?.id) === Number(targetUserId);
   const isAdmin = req.user?.role === 'owner' || req.user?.role === 'admin';
@@ -37,7 +36,7 @@ router.get('/', (req, res) => {
   });
 });
 
-/* ------------------ CREAR ------------------ */
+/* ------------------ CREAR (admin/manual) ------------------ */
 router.post('/', async (req, res) => {
   const { name, email, password, role } = req.body;
   console.log(' Datos recibidos en POST /users:', req.body);
@@ -77,6 +76,47 @@ router.post('/', async (req, res) => {
   }
 });
 
+/* ------------------ REGISTER (self-service) ------------------ */
+router.post('/register', async (req, res) => {
+  const { name, email, password } = req.body; // role por defecto = 'member'
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+
+  try {
+    db.query('SELECT id FROM users WHERE email = ?', [email], async (err, results) => {
+      if (err) {
+        console.error(' Error al verificar el email:', err);
+        return res.status(500).json({ error: 'Error al verificar el email' });
+      }
+      if (results.length > 0) {
+        return res.status(409).json({ error: 'El email ya está registrado' });
+      }
+
+      const hashed = await bcrypt.hash(password, 10);
+      const insert = 'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)';
+      db.query(insert, [name, email, hashed, 'member'], (err2, result) => {
+        if (err2) {
+          console.error(' Error al registrar usuario:', err2);
+          return res.status(500).json({ error: 'Error registrando usuario' });
+        }
+
+        const payload = { id: result.insertId, email, role: 'member' };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '2h' });
+
+        res.status(201).json({
+          message: '✅ Registro exitoso',
+          token,
+          user: { id: result.insertId, name, email, role: 'member' }
+        });
+      });
+    });
+  } catch (e) {
+    console.error(' Error en /register:', e);
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
+});
+
 /* ------------------ LOGIN ------------------ */
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
@@ -110,6 +150,16 @@ router.post('/login', (req, res) => {
   });
 });
 
+/* ------------------ AUTH: quién soy ------------------ */
+router.get('/auth/me', auth, (req, res) => {
+  const userId = req.user.id;
+  db.query('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [userId], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Error obteniendo perfil' });
+    if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(rows[0]);
+  });
+});
+
 /* ------------------ MOSTRAR PERFIL ------------------ */
 router.get('/:id', auth, (req, res) => {
   const { id } = req.params;
@@ -137,7 +187,6 @@ router.put('/:id', auth, (req, res) => {
 
   if (fields.length === 0) return res.status(400).json({ error: 'Nada para actualizar' });
 
-  // Verificar email duplicado si cambia
   const checkEmail = (cb) => {
     if (email === undefined) return cb();
     db.query('SELECT id FROM users WHERE email = ? AND id <> ?', [email, id], (e, r) => {
